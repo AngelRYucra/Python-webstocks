@@ -65,7 +65,7 @@ app = Flask(__name__)
 
 @app.route('/hola', methods=['GET'])
 def hola():
-    return "Mensaje de prueba", 200
+    return "Message", 200
 
 @app.route('/last_values', methods=['GET'])
 def last_values():
@@ -79,7 +79,7 @@ def create_image():
     data = last_values().json
 
     if not data["BTC"] or not data["BNB"]:
-        return "No hay datos suficientes", 500
+        return "No data", 500
 
     times_btc, prices_btc = zip(*data["BTC"])
     times_bnb, prices_bnb = zip(*data["BNB"])
@@ -88,9 +88,9 @@ def create_image():
     plt.plot(times_btc, prices_btc, marker='o', linestyle='-', color='blue', label="BTC")
     plt.plot(times_bnb, prices_bnb, marker='s', linestyle='-', color='green', label="BNB")
 
-    plt.xlabel("Tiempo")
-    plt.ylabel("Precio")
-    plt.title("Últimos 10 valores de BTC y BNB")
+    plt.xlabel("Time")
+    plt.ylabel("Price")
+    plt.title("Last 100 values of BTC and BNB")
     plt.legend()
     plt.xticks(rotation=45)
 
@@ -115,9 +115,9 @@ def image_btc():
 
     plt.figure(figsize=(8, 5))
     plt.plot(times_btc, prices_btc, marker='o', linestyle='-', color='blue', label="BTC")
-    plt.xlabel("Tiempo")
-    plt.ylabel("Precio")
-    plt.title("Últimos 10 valores de BTC")
+    plt.xlabel("Time")
+    plt.ylabel("Price")
+    plt.title("Last 100 values of BTC")
     plt.legend()
     plt.xticks(rotation=45)
 
@@ -144,9 +144,9 @@ def image_bnb():
 
     plt.figure(figsize=(8, 5))
     plt.plot(times_bnb, prices_btc, marker='o', linestyle='-', color='blue', label="BNB")
-    plt.xlabel("Tiempo")
-    plt.ylabel("Precio")
-    plt.title("Últimos 10 valores de BNB")
+    plt.xlabel("Time")
+    plt.ylabel("Price")
+    plt.title("Last 100 values of BNB")
     plt.legend()
     plt.xticks(rotation=45)
 
