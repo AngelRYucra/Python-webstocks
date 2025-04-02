@@ -114,7 +114,7 @@ def image_btc():
     print(times_btc)
 
     plt.figure(figsize=(8, 5))
-    plt.plot(times_btc, prices_btc, marker='o', linestyle='-', color='blue', label="BTC")
+    plt.plot(times_btc, prices_btc, marker='D', linestyle='--', color='red', label="BTC")
     plt.xlabel("Time")
     plt.ylabel("Price")
     plt.title("Last 100 values of BTC")
@@ -143,7 +143,7 @@ def image_bnb():
     print(times_btc)
 
     plt.figure(figsize=(8, 5))
-    plt.plot(times_bnb, prices_btc, marker='o', linestyle='-', color='blue', label="BNB")
+    plt.plot(times_bnb, prices_btc, marker='o', linestyle='-', color='red', label="BNB")
     plt.xlabel("Time")
     plt.ylabel("Price")
     plt.title("Last 100 values of BNB")
