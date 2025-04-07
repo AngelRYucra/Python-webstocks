@@ -8,7 +8,8 @@ import functools
 import matplotlib.ticker as mticker
 import io
 import threading
-from flask import Flask, Response
+from flask import Flask, Response, jsonify
+
 
 matplotlib.use('Agg')
 
@@ -104,7 +105,6 @@ class WS:
             plt.show()
 
 
-
 @app.route("/chart/<symbol>")
 def chart_endpoint(symbol):
     if not ws_instance:
@@ -114,6 +114,19 @@ def chart_endpoint(symbol):
     buf = ws_instance.chart(symbol=symbol, return_image=True)
     return Response(buf.getvalue(), mimetype="image/png")
 
+@app.route("/subcribed")
+def subscribed():
+    suscritos = list(ws_instance.prices.keys())
+    return jsonify(suscritos)
+
+@app.route("/subscribe/<symbol>")
+def subscribe(symbol):
+
+    symbol = symbol.upper() + "USDT"
+
+    ws_instance.subscribe(symbol)
+
+    return jsonify({"message": f"Subscribed successfully to {symbol}"})
 
 
 async def main():
