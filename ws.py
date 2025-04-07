@@ -5,6 +5,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import functools
+import matplotlib.ticker as mticker
 matplotlib.use('TkAgg')
 
 class WS:
@@ -67,7 +68,7 @@ class WS:
             prices.append(float(data['c']))
             if len(prices) > 10:
                 prices.pop(0)
-            print("Prices: ",prices)
+            print("Prices: ",symbol,prices)
     
     def chart(self):
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -82,9 +83,11 @@ class WS:
                 ax.set_title(f"Last 10 Prices for {symbol_to_plot}")
                 ax.legend(["Price"])
                 ax.set_xticks(range(len(self.prices[symbol_to_plot])))
-
+                plt.gca().yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.2f}"))
         ani = animation.FuncAnimation(fig, update, interval=1000)
-        plt.show()
+        plt.pause(0.1)
+        plt.show(block=False)
+        
     
 async def main():
     ws = WS("wss://stream.binance.com:9443/ws")
