@@ -6,14 +6,23 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import functools
 import matplotlib.ticker as mticker
-matplotlib.use('TkAgg')
+import io
+import threading
+from flask import Flask, Response
+
+matplotlib.use('Agg')
+
+# Flask app
+app = Flask(__name__)
+ws_instance = None  # Will be assigned in main()
+
 
 class WS:
     def __init__(self, hostname):
         self.hostname = hostname
         self.ws = None
         self.prices = {}
-        self.symbol_to_plot = "BTCUSDT"
+        self.symbol_to_plot = "XRPUSDT"
 
     async def connect(self):
         try:
@@ -55,10 +64,9 @@ class WS:
             print(f"Error while receiving messages: {e}")
 
     def handle_message(self, data):
-        #print(data)
         if 's' in data:
             print("Received message:", data['s'], "Price: ", data['c'])
-    
+
     def store_values(self, data):
         symbol = data.get('s')
         if symbol:
@@ -68,52 +76,63 @@ class WS:
             prices.append(float(data['c']))
             if len(prices) > 10:
                 prices.pop(0)
-            print("Prices: ",symbol,prices)
-    
-    def chart(self):
+            print("Prices: ", symbol, prices)
+
+    def chart(self, symbol=None, return_image=False):
+        if symbol is None:
+            symbol = self.symbol  # fallback to default if not provided
+
+        prices = self.prices.get(symbol, [])
+        if not prices:
+            print(f"No prices for {symbol}")
+            return io.BytesIO()  # return empty image buffer
+
         fig, ax = plt.subplots(figsize=(8, 5))
+        ax.plot(prices, marker='o')
+        ax.set_title(f"{symbol} Prices")
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Price")
+        plt.tight_layout()
 
-        symbol_to_plot = "BTCUSDT"
+        if return_image:
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)
+            plt.close(fig)
+            return buf
+        else:
+            plt.show()
 
-        def update(frame):
-            ax.clear()
 
-            if symbol_to_plot in self.prices and len(self.prices[symbol_to_plot]) > 0:
-                ax.plot(self.prices[symbol_to_plot], marker="o", linestyle="-")
-                ax.set_title(f"Last 10 Prices for {symbol_to_plot}")
-                ax.legend(["Price"])
-                ax.set_xticks(range(len(self.prices[symbol_to_plot])))
-                plt.gca().yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.2f}"))
-        ani = animation.FuncAnimation(fig, update, interval=1000)
-        plt.pause(0.1)
-        plt.show(block=False)
-        
-    
+
+@app.route("/chart/<symbol>")
+def chart_endpoint(symbol):
+    if not ws_instance:
+        return "WebSocket not initialized", 500
+
+    symbol = symbol.upper()  # e.g., convert 'xrpusdt' to 'XRPUSDT'
+    buf = ws_instance.chart(symbol=symbol, return_image=True)
+    return Response(buf.getvalue(), mimetype="image/png")
+
+
+
 async def main():
-    ws = WS("wss://stream.binance.com:9443/ws")
+    global ws_instance
+    ws_instance = WS("wss://stream.binance.com:9443/ws")
 
-    # 1) Connect (but don't block on receive_messages yet)
-    await ws.connect()
+    await ws_instance.connect()
+    receiver_task = asyncio.create_task(ws_instance.receive_messages())
 
-    # 2) Start the receive_messages() loop as a background task
-    #    so we don't block in main().
-    receiver_task = asyncio.create_task(ws.receive_messages())
-
-    # 3) Subscribe to some streams
-    await ws.subscribe(["btcusdt@ticker", "ethusdt@ticker"])
-
-    # 4) Simulate waiting or doing something else in the main function
+    await ws_instance.subscribe(["btcusdt@ticker", "ethusdt@ticker"])
     await asyncio.sleep(5)
+    await ws_instance.subscribe(["xrpusdt@ticker"])
 
-    # 5) Subscribe to additional streams AFTER we've already
-    #    started receiving messages
-    await ws.subscribe(["xrpusdt@ticker"])
+    # Start Flask in background thread
+    threading.Thread(target=lambda: app.run(port=5000), daemon=True).start()
 
-    # 6) Let the program run a bit longer to see more messages
-    await asyncio.sleep(1)
-    ws.chart()
-    # 7) If you eventually need to cancel the receiver loop:
-    #receiver_task.cancel()
+    # Optional: show chart in desktop window
+    # ws_instance.chart()
+
     try:
         await receiver_task
     except asyncio.CancelledError:
