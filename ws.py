@@ -9,7 +9,7 @@ import matplotlib.ticker as mticker
 import io
 import threading
 from flask import Flask, Response, jsonify
-
+from collections import defaultdict
 
 matplotlib.use('Agg')
 loop = asyncio.new_event_loop()
@@ -23,7 +23,7 @@ class WS:
     def __init__(self, hostname):
         self.hostname = hostname
         self.ws = None
-        self.prices = {}
+        self.prices = defaultdict(list)
         self.symbol_to_plot = "XRPUSDT"
 
     async def connect(self):
@@ -46,8 +46,10 @@ class WS:
         try:
             await self.ws.send(json.dumps(subscribe_request))
             print(f"Subscribed to: {tickers}")
+            return True
         except Exception as e:
             print(f"Error sending subscription: {e}")
+        return False
 
     async def receive_messages(self):
         if not self.ws:
@@ -81,7 +83,7 @@ class WS:
             prices = self.prices[symbol]
             prices.append(float(data['c']))
             
-            if len(prices) > 10:
+            if len(prices) > 1000:
                 prices.pop(0)
 
             print(f"Updated Prices for {symbol}: {prices}")
@@ -111,7 +113,6 @@ class WS:
         else:
             plt.show()
 
-
 @app.route("/chart/<symbol>")
 def chart_endpoint(symbol):
     if not ws_instance:
@@ -127,24 +128,31 @@ def subscribed():
     return jsonify(suscritos)
 
 @app.route("/subscribe/<symbol>")
-def subscribe(symbol):
-    symbol = symbol.upper() + "USDT"
-    ticker = symbol.lower() + "@ticker"
+async def subscribe(symbol):
+    #the currency need to be in lowercaser
+    if symbol.upper() + "USDT" in ws_instance.prices:
+        return jsonify({"message": f"Already Subscribed to {symbol}"})
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    symbol = symbol + "usdt@ticker"
 
-    asyncio.run_coroutine_threadsafe(ws_instance.subscribe([ticker]), loop)
+    subcribed = await ws_instance.subscribe([symbol])
 
-    if symbol not in ws_instance.prices:
-        ws_instance.prices[symbol] = []
+    if subcribed:
+        return jsonify({"message": f"Subscribed successfully to {symbol}"})
+    else:
+        return jsonify({"message": f"Not Subscribed to {symbol}"})
 
-    return jsonify({"message": f"Subscribed successfully to {symbol}"})
-
+@app.route("/values")
+def values():
+    value_currency = ws_instance.store_values()
+    return value_currency
 
 async def main():
     global ws_instance
     global loop
+    # Start Flask in background thread
+    threading.Thread(target=lambda: app.run(port=5000), daemon=True).start()
+
     ws_instance = WS("wss://stream.binance.com:9443/ws")
     asyncio.set_event_loop(loop)
     await ws_instance.connect()
@@ -152,13 +160,6 @@ async def main():
 
     await ws_instance.subscribe(["btcusdt@ticker", "ethusdt@ticker"])
     await asyncio.sleep(5)
-    await ws_instance.subscribe(["xrpusdt@ticker"])
-
-    # Start Flask in background thread
-    threading.Thread(target=lambda: app.run(port=5000), daemon=True).start()
-
-    # Optional: show chart in desktop window
-    # ws_instance.chart()
 
     try:
         await receiver_task
