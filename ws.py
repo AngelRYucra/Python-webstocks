@@ -12,10 +12,11 @@ from flask import Flask, Response, jsonify
 
 
 matplotlib.use('Agg')
+loop = asyncio.new_event_loop()
 
 # Flask app
 app = Flask(__name__)
-ws_instance = None  # Will be assigned in main()
+ws_instance = None 
 
 
 class WS:
@@ -52,7 +53,6 @@ class WS:
         if not self.ws:
             print("WebSocket is not connected. Call connect() first.")
             return
-
         try:
             while True:
                 msg = await self.ws.recv()
@@ -65,28 +65,35 @@ class WS:
             print(f"Error while receiving messages: {e}")
 
     def handle_message(self, data):
-        if 's' in data:
-            print("Received message:", data['s'], "Price: ", data['c'])
+        if 's' in data and 'c' in data:
+            symbol = data['s'].upper()
+            price = float(data['c'])
+            print(f"Received message: {symbol} Price: {price}")
+
 
     def store_values(self, data):
         symbol = data.get('s')
         if symbol:
             if symbol not in self.prices:
                 self.prices[symbol] = []
+                print(f"New symbol added: {symbol}")
+            # Append the latest price
             prices = self.prices[symbol]
             prices.append(float(data['c']))
+            
             if len(prices) > 10:
                 prices.pop(0)
-            print("Prices: ", symbol, prices)
+
+            print(f"Updated Prices for {symbol}: {prices}")
 
     def chart(self, symbol=None, return_image=False):
         if symbol is None:
-            symbol = self.symbol  # fallback to default if not provided
+            symbol = self.symbol
 
         prices = self.prices.get(symbol, [])
         if not prices:
             print(f"No prices for {symbol}")
-            return io.BytesIO()  # return empty image buffer
+            return io.BytesIO()
 
         fig, ax = plt.subplots(figsize=(8, 5))
         ax.plot(prices, marker='o')
@@ -110,7 +117,7 @@ def chart_endpoint(symbol):
     if not ws_instance:
         return "WebSocket not initialized", 500
 
-    symbol = symbol.upper()  # e.g., convert 'xrpusdt' to 'XRPUSDT'
+    symbol = symbol.upper()
     buf = ws_instance.chart(symbol=symbol, return_image=True)
     return Response(buf.getvalue(), mimetype="image/png")
 
@@ -121,18 +128,25 @@ def subscribed():
 
 @app.route("/subscribe/<symbol>")
 def subscribe(symbol):
-
     symbol = symbol.upper() + "USDT"
+    ticker = symbol.lower() + "@ticker"
 
-    ws_instance.subscribe(symbol)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    asyncio.run_coroutine_threadsafe(ws_instance.subscribe([ticker]), loop)
+
+    if symbol not in ws_instance.prices:
+        ws_instance.prices[symbol] = []
 
     return jsonify({"message": f"Subscribed successfully to {symbol}"})
 
 
 async def main():
     global ws_instance
+    global loop
     ws_instance = WS("wss://stream.binance.com:9443/ws")
-
+    asyncio.set_event_loop(loop)
     await ws_instance.connect()
     receiver_task = asyncio.create_task(ws_instance.receive_messages())
 
